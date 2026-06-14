@@ -53,8 +53,16 @@ async function fetchViaLibrary(videoId: string): Promise<string> {
 
 // --- yt-dlp CLI で取得（ローカル環境用フォールバック） ---
 
+function resolveYtDlpPath(): string {
+  // 明示的に環境変数で指定された場合はそれを優先（ローカル Windows 等）
+  if (process.env.YTDLP_PATH) return process.env.YTDLP_PATH;
+  // Linux (Vercel) では postinstall でダウンロードしたバイナリを使う
+  if (process.platform === "linux") return join(process.cwd(), "bin", "yt-dlp");
+  return "yt-dlp";
+}
+
 async function fetchViaYtDlp(url: string, videoId: string): Promise<string> {
-  const ytdlpPath = process.env.YTDLP_PATH ?? "yt-dlp";
+  const ytdlpPath = resolveYtDlpPath();
   const tmpBase = join(tmpdir(), `yt_transcript_${videoId}_${Date.now()}`);
 
   for (const lang of ["ja", "en"]) {
