@@ -1,5 +1,5 @@
 import { execFile } from "child_process";
-import { readFileSync, unlinkSync, existsSync, chmodSync, createWriteStream } from "fs";
+import { readFileSync, unlinkSync, existsSync, readdirSync, chmodSync, createWriteStream } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { promisify } from "util";
@@ -94,12 +94,23 @@ async function resolveYtDlpPath(): Promise<string> {
   return "yt-dlp";
 }
 
+function findVttFiles(dir: string, prefix: string): string[] {
+  try {
+    return readdirSync(dir)
+      .filter((f) => f.startsWith(prefix) && f.endsWith(".vtt"))
+      .map((f) => join(dir, f));
+  } catch {
+    return [];
+  }
+}
+
 async function fetchViaYtDlp(url: string, videoId: string): Promise<string> {
   const ytdlpPath = await resolveYtDlpPath();
-  const tmpBase = join(tmpdir(), `yt_transcript_${videoId}_${Date.now()}`);
+  const tmp = tmpdir();
+  const baseName = `yt_transcript_${videoId}_${Date.now()}`;
+  const tmpBase = join(tmp, baseName);
 
   for (const lang of ["ja", "en"]) {
-    const vttPath = `${tmpBase}.${lang}.vtt`;
     try {
       await execFileAsync(ytdlpPath, [
         "--write-auto-subs",
@@ -108,20 +119,27 @@ async function fetchViaYtDlp(url: string, videoId: string): Promise<string> {
         "--skip-download",
         "--sub-format", "vtt",
         "--no-playlist",
+        // JS不要の Android クライアントを優先（Vercel に Deno/Node がない環境向け）
+        "--extractor-args", "youtube:player_client=android,web",
         "-o", tmpBase,
         url,
       ], { timeout: 30000 });
+    } catch {
+      // yt-dlp は字幕なし時も非ゼロ終了するので無視
+    }
 
-      if (existsSync(vttPath)) {
+    // yt-dlp が実際に作ったファイルを glob で探す（en-US.vtt 等のバリアントに対応）
+    const vttFiles = findVttFiles(tmp, baseName);
+    for (const vttPath of vttFiles) {
+      try {
         const vttContent = readFileSync(vttPath, "utf-8");
         unlinkSync(vttPath);
         const parsed = parseVTT(vttContent);
         if (parsed.length > 0) return parsed;
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore, try next lang
     }
-    if (existsSync(vttPath)) unlinkSync(vttPath);
   }
 
   return "";
