@@ -92,20 +92,45 @@ export async function GET(req: Request) {
     libraryResult = `ERROR: ${e instanceof Error ? e.message : String(e)}`;
   }
 
-  // yt-dlp list-subs check
-  let ytdlpSubsResult = "(skipped)";
+  // yt-dlp actual VTT download check
+  let ytdlpDownloadResult = "(skipped)";
   if (ytdlpExists) {
+    const { readdirSync, readFileSync, unlinkSync, existsSync: fsExists } = await import("fs");
+    const tmpBase = join(tmpdir(), `debug_vtt_${videoId}_${Date.now()}`);
+    const baseName = tmpBase.split("/").pop()!;
+    let stdout2 = "", stderr2 = "";
     try {
-      const { stdout, stderr } = await execFileAsync(
+      const r = await execFileAsync(
         ytdlpResolved,
-        ["--list-subs", "--no-playlist", `https://www.youtube.com/watch?v=${videoId}`],
+        [
+          "--write-auto-subs", "--write-subs",
+          "--sub-langs", "ja,en",
+          "--skip-download",
+          "--sub-format", "vtt",
+          "--no-playlist",
+          "--extractor-args", "youtube:player_client=android,web",
+          "-o", tmpBase,
+          `https://www.youtube.com/watch?v=${videoId}`,
+        ],
         { timeout: 30000 }
       );
-      ytdlpSubsResult = `OK stdout=${stdout.slice(0, 300)} stderr=${stderr.slice(0, 100)}`;
+      stdout2 = r.stdout;
+      stderr2 = r.stderr;
     } catch (e: unknown) {
       const err = e as { message?: string; stdout?: string; stderr?: string };
-      ytdlpSubsResult = `ERROR: ${err.message} | stderr=${err.stderr?.slice(0, 300)}`;
+      stdout2 = err.stdout ?? "";
+      stderr2 = err.stderr ?? `(exec error: ${err.message})`;
     }
+    // find any created VTT files
+    const tmp = tmpdir();
+    const vttFiles = readdirSync(tmp).filter(f => f.startsWith(baseName) && f.endsWith(".vtt"));
+    let vttContent = "";
+    for (const f of vttFiles) {
+      const p = join(tmp, f);
+      vttContent = readFileSync(p, "utf-8").slice(0, 200);
+      unlinkSync(p);
+    }
+    ytdlpDownloadResult = `vttFiles=${JSON.stringify(vttFiles)} | vttContent=${vttContent.slice(0,100)} | stderr=${stderr2.slice(0,300)}`;
   }
 
   return NextResponse.json({
@@ -121,6 +146,6 @@ export async function GET(req: Request) {
     ytdlpExists,
     ytdlpVersion,
     libraryResult,
-    ytdlpSubsResult,
+    ytdlpDownloadResult,
   });
 }
