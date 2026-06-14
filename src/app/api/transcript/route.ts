@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTranscript } from "@/lib/youtube";
 import type { TranscriptRequest } from "@/types";
 
+// yt-dlpフォールバック時に~30秒かかる場合があるため延長
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     const { url }: TranscriptRequest = await req.json();

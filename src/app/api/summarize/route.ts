@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { summarizeWithClaude } from "@/lib/claude";
 import type { SummarizeRequest } from "@/types";
 
-// Phase 2 (Vercel) でのタイムアウト対策設定:
-// export const maxDuration = 60; // Vercel Pro プランで60秒まで延長
+// Vercel: Hobby=60s, Pro=300s。Claude APIが~40秒かかるため必須
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
