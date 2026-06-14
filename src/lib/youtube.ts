@@ -1,8 +1,9 @@
 import { execFile } from "child_process";
-import { readFileSync, unlinkSync, existsSync } from "fs";
+import { readFileSync, unlinkSync, existsSync, chmodSync, createWriteStream } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { promisify } from "util";
+import https from "https";
 import { YoutubeTranscript } from "youtube-transcript";
 import type { TranscriptResult } from "@/types";
 
@@ -53,16 +54,48 @@ async function fetchViaLibrary(videoId: string): Promise<string> {
 
 // --- yt-dlp CLI で取得（ローカル環境用フォールバック） ---
 
-function resolveYtDlpPath(): string {
-  // 明示的に環境変数で指定された場合はそれを優先（ローカル Windows 等）
+const YTDLP_TMP = join(tmpdir(), "yt-dlp");
+const YTDLP_LINUX_URL =
+  "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux";
+
+function downloadFile(url: string, dest: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const file = createWriteStream(dest);
+    https.get(url, (res) => {
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        file.close();
+        downloadFile(res.headers.location!, dest).then(resolve).catch(reject);
+        return;
+      }
+      if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
+      res.pipe(file);
+      file.on("finish", () => file.close(() => resolve()));
+    }).on("error", reject);
+  });
+}
+
+async function resolveYtDlpPath(): Promise<string> {
   if (process.env.YTDLP_PATH) return process.env.YTDLP_PATH;
-  // Linux (Vercel) では postinstall でダウンロードしたバイナリを使う
-  if (process.platform === "linux") return join(process.cwd(), "bin", "yt-dlp");
+
+  if (process.platform === "linux") {
+    // 1) bundle に含まれているか確認
+    const bundled = join(process.cwd(), "bin", "yt-dlp");
+    if (existsSync(bundled)) return bundled;
+
+    // 2) /tmp にキャッシュ済みか確認
+    if (existsSync(YTDLP_TMP)) return YTDLP_TMP;
+
+    // 3) ランタイムダウンロード（コールドスタート時のみ）
+    await downloadFile(YTDLP_LINUX_URL, YTDLP_TMP);
+    chmodSync(YTDLP_TMP, 0o755);
+    return YTDLP_TMP;
+  }
+
   return "yt-dlp";
 }
 
 async function fetchViaYtDlp(url: string, videoId: string): Promise<string> {
-  const ytdlpPath = resolveYtDlpPath();
+  const ytdlpPath = await resolveYtDlpPath();
   const tmpBase = join(tmpdir(), `yt_transcript_${videoId}_${Date.now()}`);
 
   for (const lang of ["ja", "en"]) {

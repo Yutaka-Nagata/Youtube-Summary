@@ -1,0 +1,14 @@
+{
+  "functions": {
+    "src/app/api/transcript/route.ts": {
+      "includeFiles": "bin/yt-dlp",
+      "maxDuration": 60
+    },
+    "src/app/api/summarize/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/save-notion/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
