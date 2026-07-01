@@ -2,29 +2,60 @@
   "name": "youtube-notion-summary",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "node scripts/download-ytdlp.mjs"
+    "postinstall": "node scripts/download-ytdlp.mjs",
+    "electron": "electron .",
+    "electron:build": "next build && node scripts/build-app.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
-    "@distube/ytdl-core": "^4.16.12",
     "@notionhq/client": "^5.22.0",
     "next": "^15.3.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "youtube-transcript": "^1.2.1",
-    "youtubei.js": "^17.0.1"
+    "youtube-transcript": "^1.2.1"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "electron": "^42.4.0",
+    "electron-builder": "^26.15.3",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.personal.youtube-notion-summary",
+    "productName": "YouTube Notion Summary",
+    "asar": false,
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**",
+      ".next/**",
+      "public/**",
+      "node_modules/**",
+      "package.json"
+    ],
+    "extraFiles": [
+      {
+        "from": ".env.local",
+        "to": ".env.local"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    }
   }
 }

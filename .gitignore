@@ -41,3 +41,8 @@ next-env.d.ts
 # temp / debug
 debug-*.mjs
 tmp_*.vtt
+
+.vercel
+
+# electron build output
+/dist-electron/
